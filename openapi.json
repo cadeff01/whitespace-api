@@ -1,0 +1,96 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Whitespace API",
+    "version": "1.0.0",
+    "description": "Provider-specific tools for Copilot Studio. SAM.gov searches return opportunity metadata, not full descriptions or attachments."
+  },
+  "basePath": "/",
+  "schemes": ["https"],
+  "produces": ["application/json"],
+  "securityDefinitions": {
+    "entra": {
+      "type": "oauth2",
+      "flow": "accessCode",
+      "authorizationUrl": "https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/authorize",
+      "tokenUrl": "https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/token",
+      "scopes": {
+        "api://YOUR_API_CLIENT_ID/access_as_user": "Search government contract opportunities"
+      }
+    }
+  },
+  "security": [{"entra": ["api://YOUR_API_CLIENT_ID/access_as_user"]}],
+  "paths": {
+    "/api/sam/opportunities": {
+      "get": {
+        "operationId": "SearchSamOpportunities",
+        "summary": "Search SAM.gov contract opportunities",
+        "description": "Supply a posting date range of at most one calendar year. Use next_page to fetch more results; page is a zero-based page index, not a record offset. Does not retrieve full notice descriptions or attachments.",
+        "parameters": [
+          {"name": "posted_from", "in": "query", "required": true, "type": "string", "format": "date", "description": "First posting date, YYYY-MM-DD."},
+          {"name": "posted_to", "in": "query", "required": true, "type": "string", "format": "date", "description": "Last posting date, YYYY-MM-DD; at most one year after posted_from."},
+          {"name": "title", "in": "query", "type": "string", "maxLength": 200, "description": "Search notice titles."},
+          {"name": "notice_id", "in": "query", "type": "string", "maxLength": 200},
+          {"name": "solicitation_number", "in": "query", "type": "string", "maxLength": 200},
+          {"name": "notice_type", "in": "query", "type": "string", "enum": ["u", "p", "a", "r", "s", "o", "g", "k", "i"], "description": "u=justification, p=presolicitation, a=award, r=sources sought, s=special notice, o=solicitation, g=surplus property, k=combined synopsis/solicitation, i=intent to bundle."},
+          {"name": "naics_code", "in": "query", "type": "string", "pattern": "^[0-9]{1,6}$"},
+          {"name": "set_aside", "in": "query", "type": "string", "maxLength": 200, "description": "SAM.gov set-aside code, for example SBA."},
+          {"name": "state", "in": "query", "type": "string", "pattern": "^[A-Za-z]{2}$", "description": "Two-letter place-of-performance state code."},
+          {"name": "page", "in": "query", "type": "integer", "minimum": 0, "maximum": 2147483647, "default": 0},
+          {"name": "page_size", "in": "query", "type": "integer", "minimum": 1, "maximum": 100, "default": 20}
+        ],
+        "responses": {
+          "200": {"description": "Matching opportunities.", "schema": {"$ref": "#/definitions/SearchResults"}},
+          "400": {"description": "Invalid filters or dates.", "schema": {"$ref": "#/definitions/Error"}},
+          "401": {"description": "Entra authentication required.", "schema": {"$ref": "#/definitions/Error"}},
+          "429": {"description": "SAM.gov rate limit or daily quota exceeded. Do not retry immediately.", "schema": {"$ref": "#/definitions/Error"}},
+          "502": {"description": "SAM.gov rejected the credential, failed, or returned malformed data.", "schema": {"$ref": "#/definitions/Error"}},
+          "503": {"description": "Key Vault configuration or credential unavailable.", "schema": {"$ref": "#/definitions/Error"}},
+          "504": {"description": "SAM.gov timed out.", "schema": {"$ref": "#/definitions/Error"}}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Error": {
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {"code": {"type": "string"}, "message": {"type": "string"}}
+        }
+      }
+    },
+    "SearchResults": {
+      "type": "object",
+      "required": ["source", "total_records", "page", "page_size", "next_page", "opportunities"],
+      "properties": {
+        "source": {"type": "string", "enum": ["sam.gov"]},
+        "total_records": {"type": "integer", "minimum": 0},
+        "page": {"type": "integer", "minimum": 0},
+        "page_size": {"type": "integer", "minimum": 1, "maximum": 100},
+        "next_page": {"type": "integer", "x-nullable": true, "description": "Next page index, or null when done."},
+        "opportunities": {"type": "array", "items": {"$ref": "#/definitions/Opportunity"}}
+      }
+    },
+    "Opportunity": {
+      "type": "object",
+      "required": ["notice_id", "title", "url"],
+      "properties": {
+        "notice_id": {"type": "string"},
+        "title": {"type": "string"},
+        "solicitation_number": {"type": "string", "x-nullable": true},
+        "agency": {"type": "string", "x-nullable": true},
+        "posted_date": {"type": "string", "x-nullable": true},
+        "response_deadline": {"type": "string", "x-nullable": true},
+        "notice_type": {"type": "string", "x-nullable": true},
+        "naics_code": {"type": "string", "x-nullable": true},
+        "set_aside": {"type": "string", "x-nullable": true},
+        "active": {"type": "string", "x-nullable": true},
+        "url": {"type": "string", "format": "uri"}
+      }
+    }
+  }
+}

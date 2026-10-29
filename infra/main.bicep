@@ -22,6 +22,15 @@ param resourceGroupName string = ''
 param appServiceName string = ''
 param appServicePlanName string = ''
 
+@description('Tenant ID used by App Service Authentication.')
+param entraTenantId string
+@description('Application/client ID of the API app registration, not the connector client.')
+param entraClientId string
+param keyVaultName string = 'whitespacekv'
+@description('Resource group containing the existing RBAC-enabled Key Vault.')
+param keyVaultResourceGroupName string
+param samApiKeySecretName string = 'sam-gov-api-key'
+
 var abbrs = loadJsonContent('./abbreviations.json')
 
 // tags that should be applied to all resources.
@@ -61,7 +70,25 @@ module web './core/host/appservice.bicep' = {
     runtimeName: 'python'
     runtimeVersion: '3.12'
     scmDoBuildDuringDeployment: true
+    managedIdentity: true
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    healthCheckPath: '/health'
+    appSettings: {
+      AZURE_KEY_VAULT_ENDPOINT: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/'
+      SAM_API_KEY_SECRET_NAME: samApiKeySecretName
+    }
     tags: union(tags, { 'azd-service-name': 'web' })
+  }
+}
+
+module keyVaultAccess './core/host/keyvault-access.bicep' = {
+  name: 'sam-keyvault-access'
+  scope: resourceGroup(keyVaultResourceGroupName)
+  params: {
+    keyVaultName: keyVaultName
+    secretName: samApiKeySecretName
+    principalId: web.outputs.identityPrincipalId
   }
 }
 
@@ -89,4 +116,3 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
 // To see these outputs, run `azd env get-values`,  or `azd env get-values --output json` for json output.
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
-

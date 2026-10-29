@@ -8,6 +8,8 @@ param applicationInsightsName string = ''
 param appServicePlanId string
 param keyVaultName string = ''
 param managedIdentity bool = !empty(keyVaultName)
+param entraTenantId string
+param entraClientId string
 
 // Runtime Properties
 @allowed([
@@ -61,6 +63,46 @@ resource appService 'Microsoft.Web/sites@2022-03-01' = {
     }
     clientAffinityEnabled: clientAffinityEnabled
     httpsOnly: true
+  }
+
+  resource authentication 'config@2022-03-01' = {
+    name: 'authsettingsV2'
+    dependsOn: [configLogs]
+    properties: {
+      platform: {
+        enabled: true
+      }
+      globalValidation: {
+        requireAuthentication: true
+        unauthenticatedClientAction: 'Return401'
+        excludedPaths: [
+          '/health'
+          '/openapi.json'
+          '/'
+          '/hello'
+          '/favicon.ico'
+          '/static/*'
+        ]
+      }
+      identityProviders: {
+        azureActiveDirectory: {
+          enabled: true
+          registration: {
+            clientId: entraClientId
+            openIdIssuer: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0'
+          }
+          validation: {
+            allowedAudiences: [
+              entraClientId
+              'api://${entraClientId}'
+            ]
+          }
+        }
+      }
+      httpSettings: {
+        requireHttps: true
+      }
+    }
   }
 
   identity: { type: managedIdentity ? 'SystemAssigned' : 'None' }

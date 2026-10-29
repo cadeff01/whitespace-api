@@ -7,6 +7,15 @@
       },
       "location": {
         "value": "${AZURE_LOCATION}"
+      },
+      "entraTenantId": {
+        "value": "${AZURE_AUTH_TENANT_ID}"
+      },
+      "entraClientId": {
+        "value": "${AZURE_API_CLIENT_ID}"
+      },
+      "keyVaultResourceGroupName": {
+        "value": "${AZURE_KEY_VAULT_RESOURCE_GROUP}"
       }
     }
 }
